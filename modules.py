@@ -417,6 +417,7 @@ class MLPDecoder(nn.Module):
 
     def __init__(self, n_in_node, edge_types, msg_hid, msg_out, n_hid,
                  do_prob=0., skip_first=False):
+        # msg_hid and msg_out are the dimensions of the hidden and output layers of the h for each edge_type (when MLPDecoder is called both have the same value)
         super(MLPDecoder, self).__init__()
         self.msg_fc1 = nn.ModuleList(
             [nn.Linear(2 * n_in_node, msg_hid) for _ in range(edge_types)])
@@ -445,10 +446,10 @@ class MLPDecoder(nn.Module):
         # Node2edge
         receivers = torch.matmul(rel_rec, single_timestep_inputs)
         senders = torch.matmul(rel_send, single_timestep_inputs)
-        pre_msg = torch.cat([senders, receivers], dim=-1)
+        pre_msg = torch.cat([senders, receivers], dim=-1) # shape: [batch_size, num_timesteps, num_edges, 2*num_dims]
 
         all_msgs = Variable(torch.zeros(pre_msg.size(0), pre_msg.size(1),
-                                        pre_msg.size(2), self.msg_out_shape))
+                                        pre_msg.size(2), self.msg_out_shape)) # shape: [batch_size, num_timesteps, num_edges, msg_out]
         if single_timestep_inputs.is_cuda:
             all_msgs = all_msgs.cuda()
 
@@ -468,27 +469,29 @@ class MLPDecoder(nn.Module):
 
         # Aggregate all msgs to receiver
         agg_msgs = all_msgs.transpose(-2, -1).matmul(rel_rec).transpose(-2, -1)
-        agg_msgs = agg_msgs.contiguous()
+        agg_msgs = agg_msgs.contiguous()  # shape: [batch_size, num_timesteps, num_atoms, msg_out]
 
         # Skip connection
-        aug_inputs = torch.cat([single_timestep_inputs, agg_msgs], dim=-1)
+        aug_inputs = torch.cat([single_timestep_inputs, agg_msgs], dim=-1) # shape: [batch_size, num_timesteps, num_atoms, msg_out+num_dims]
 
         # Output MLP
         pred = F.dropout(F.relu(self.out_fc1(aug_inputs)), p=self.dropout_prob)
         pred = F.dropout(F.relu(self.out_fc2(pred)), p=self.dropout_prob)
-        pred = self.out_fc3(pred)
+        pred = self.out_fc3(pred) # shape: [batch_size, num_timesteps, num_atoms, num_dims]
 
         # Predict position/velocity difference
-        return single_timestep_inputs + pred
+        return single_timestep_inputs + pred    # shape: same as single_timestep_inputs (the input of this method, i.e. [batch_size, num_timesteps, num_atoms, num_dims])
 
     def forward(self, inputs, rel_type, rel_rec, rel_send, pred_steps=1):
         # NOTE: Assumes that we have the same graph across all samples.
+        # inputs shape: [num_sims, num_atoms, num_timesteps, num_dims]
+        # rel_type shape: [num_sims, num_edges, num_types]
 
-        inputs = inputs.transpose(1, 2).contiguous()
+        inputs = inputs.transpose(1, 2).contiguous() # shape: [num_sims, num_timesteps, num_atoms, num_dims]
 
         sizes = [rel_type.size(0), inputs.size(1), rel_type.size(1),
                  rel_type.size(2)]
-        rel_type = rel_type.unsqueeze(1).expand(sizes)
+        rel_type = rel_type.unsqueeze(1).expand(sizes)  # shape: [num_sims, num_timesteps, num_edges, num_types]
 
         time_steps = inputs.size(1)
         assert (pred_steps <= time_steps)
@@ -503,6 +506,7 @@ class MLPDecoder(nn.Module):
         for step in range(0, pred_steps):
             last_pred = self.single_step_forward(last_pred, rel_rec, rel_send,
                                                  curr_rel_type)
+            # shape of last_pred : [num_sims, ceil(num_timesteps/pred_steps), num_atoms, num_dims]
             preds.append(last_pred)
 
         sizes = [preds[0].size(0), preds[0].size(1) * pred_steps,
@@ -518,7 +522,8 @@ class MLPDecoder(nn.Module):
 
         pred_all = output[:, :(inputs.size(1) - 1), :, :]
 
-        return pred_all.transpose(1, 2).contiguous()
+        return pred_all.transpose(1, 2).contiguous()   # [num_sims, num_atoms, num_timesteps-1, num_dims]
+        # To be compared with inputs[:,:,1:,:]
 
 
 class RNNDecoder(nn.Module):
