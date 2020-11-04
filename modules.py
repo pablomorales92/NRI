@@ -112,8 +112,8 @@ class MLPEncoder(nn.Module):
 
     def edge2node(self, x, rel_rec, rel_send):
         # NOTE: Assumes that we have the same graph across all samples.
-        incoming = torch.matmul(rel_rec.t(), x)
-        return incoming / incoming.size(1)
+        incoming = torch.matmul(rel_rec.t(), x) 
+        return incoming / incoming.size(1) 
 
     def node2edge(self, x, rel_rec, rel_send):
         # NOTE: Assumes that we have the same graph across all samples.
@@ -127,24 +127,24 @@ class MLPEncoder(nn.Module):
         x = inputs.view(inputs.size(0), inputs.size(1), -1)
         # New shape: [num_sims, num_atoms, num_timesteps*num_dims]
 
-        x = self.mlp1(x)  # 2-layer ELU net per node
+        x = self.mlp1(x)  # 2-layer ELU net per node # shape: [num_sims, num_atoms, n_hid]
 
-        x = self.node2edge(x, rel_rec, rel_send)
-        x = self.mlp2(x)
+        x = self.node2edge(x, rel_rec, rel_send) # shape: [num_sims, num_edges, 2*n_hid]
+        x = self.mlp2(x)  # shape: [num_sims, num_edges, n_hid]
         x_skip = x
 
         if self.factor:
-            x = self.edge2node(x, rel_rec, rel_send)
-            x = self.mlp3(x)
-            x = self.node2edge(x, rel_rec, rel_send)
-            x = torch.cat((x, x_skip), dim=2)  # Skip connection
-            x = self.mlp4(x)
+            x = self.edge2node(x, rel_rec, rel_send)                # shape: [num_sims, num_atoms, n_hid]
+            x = self.mlp3(x)                                        # shape: [num_sims, num_atoms, n_hid]
+            x = self.node2edge(x, rel_rec, rel_send)                # shape: [num_sims, num_edges, 2*n_hid]
+            x = torch.cat((x, x_skip), dim=2)  # Skip connection    # shape: [num_sims, num_edges, 3*n_hid]
+            x = self.mlp4(x)                                        # shape: [num_sims, num_edges, n_hid]
         else:
             x = self.mlp3(x)
             x = torch.cat((x, x_skip), dim=2)  # Skip connection
             x = self.mlp4(x)
 
-        return self.fc_out(x)
+        return self.fc_out(x)                                       # shape: [num_sims, num_edges, n_out (edge_types)]
 
 
 class CNNEncoder(nn.Module):
