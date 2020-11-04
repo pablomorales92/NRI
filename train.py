@@ -109,6 +109,8 @@ train_loader, valid_loader, test_loader, loc_max, loc_min, vel_max, vel_min = lo
 # Generate off-diagonal interaction graph
 off_diag = np.ones([args.num_atoms, args.num_atoms]) - np.eye(args.num_atoms)
 
+# Shape of rel_rec and rel_send: [num_atoms*(num_atoms-1), num_atoms] 
+# The second dimension is a one-hot encoding of the receiver or sender atom (node)
 rel_rec = np.array(encode_onehot(np.where(off_diag)[0]), dtype=np.float32)
 rel_send = np.array(encode_onehot(np.where(off_diag)[1]), dtype=np.float32)
 rel_rec = torch.FloatTensor(rel_rec)
@@ -156,6 +158,11 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay,
 # Linear indices of an upper triangular mx, used for acc calculation
 triu_indices = get_triu_offdiag_indices(args.num_atoms)
 tril_indices = get_tril_offdiag_indices(args.num_atoms)
+# Example: 
+# >>> get_triu_offdiag_indices(3)
+# tensor([[0],
+#         [1],
+#         [3]])
 
 if args.prior:
     prior = np.array([0.91, 0.03, 0.03, 0.03])  # TODO: hard coded for now
