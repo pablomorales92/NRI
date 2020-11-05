@@ -197,7 +197,6 @@ def train(epoch, best_val_loss):
 
     encoder.train()
     decoder.train()
-    scheduler.step()
     for batch_idx, (data, relations) in enumerate(train_loader):
 
         if args.cuda:
@@ -239,7 +238,8 @@ def train(epoch, best_val_loss):
         mse_train.append(F.mse_loss(output, target).item())
         nll_train.append(loss_nll.item())
         kl_train.append(loss_kl.item())
-
+    scheduler.step()
+    
     nll_val = []
     acc_val = []
     kl_val = []

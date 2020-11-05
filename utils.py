@@ -176,7 +176,7 @@ def load_data(batch_size=1, suffix=''):
     off_diag_idx = np.ravel_multi_index(
         np.where(np.ones((num_atoms, num_atoms)) - np.eye(num_atoms)),
         [num_atoms, num_atoms])
-    edges_train = edges_train[:, off_diag_idx]
+    edges_train = edges_train[:, off_diag_idx]   # shape: [num_sims, num_atoms*(num_atoms-1)]
     edges_valid = edges_valid[:, off_diag_idx]
     edges_test = edges_test[:, off_diag_idx]
 
@@ -471,6 +471,8 @@ def nll_gaussian(preds, target, variance, add_const=False):
 
 
 def edge_accuracy(preds, target):
+    # preds shape: [num_sims, num_edges, num_types]
+    # target shape: [num_sims, num_edges]
     _, preds = preds.max(-1)
     correct = preds.float().data.eq(
         target.float().data.view_as(preds)).cpu().sum()
